@@ -1,39 +1,52 @@
-# 🏎️ Carro a control remoto con ESP32
+# 🏎️ Entrega 1: etapa de potencia y movimiento del carro
 
-## 📋 Descripción
+Proyecto final de **Electrónica Análoga II y Básica** — Universidad de Antioquia (UdeA).
 
-El ESP32 genera las señales de dirección y velocidad (PWM) para un driver de motores **TB6612FNG**, que mueve dos motorreductores DC en configuración diferencial (tracción 2WD). El carro avanza, retrocede y gira sobre su propio eje.
+En esta primera entrega el carro se mueve **adelante, atrás, a la izquierda y a la derecha** con una secuencia automática programada en un **ESP32**. Todavía no tiene control remoto ni sensores.
 
-```mermaid
-flowchart LR
-    X[Control Xbox Series S] -. Bluetooth .-> E[ESP32 Lolin32 Lite]
-    E -->|AIN, BIN y PWM| D[Driver TB6612FNG]
-    D --> M1[Motor izquierdo]
-    D --> M2[Motor derecho]
-    B[2 x 18650 en serie, ~7,4 V] --> D
-    P[Power bank 5 V] --> E
-```
+---
+
+## 🎯 Objetivo
+
+Implementar la etapa de potencia (puente H) que permite invertir el sentido de giro de dos motores DC y comprobar el movimiento diferencial del carro:
+
+| Movimiento | Motor izquierdo | Motor derecho |
+|---|---|---|
+| Adelante | ➡️ Adelante | ➡️ Adelante |
+| Atrás | ⬅️ Atrás | ⬅️ Atrás |
+| Izquierda | ⬅️ Atrás | ➡️ Adelante |
+| Derecha | ➡️ Adelante | ⬅️ Atrás |
+
+Al girar, un motor va hacia adelante y el otro hacia atrás, y el carro rota sobre su propio eje.
 
 ---
 
 ## 🧰 Materiales
 
-| Componente | Cantidad | Nota |
+| Componente | Cantidad | Función |
 |---|---|---|
-| ESP32 Lolin32 Lite | 1 | Controlador principal, con Bluetooth |
+| ESP32 Lolin32 Lite | 1 | Genera las señales de dirección y velocidad |
 | Driver de motores TB6612FNG | 1 | Dos puentes H integrados |
-| Chasis 2WD con 2 motorreductores y rueda de apoyo | 1 | Motores tipo TT |
-| Baterías 18650 (3,7 V, 2500 mAh) | 2 | En serie con su portapilas: ~7,4 a 8,4 V |
+| Chasis 2WD con 2 motorreductores y rueda de apoyo | 1 | Estructura y tracción |
+| Baterías 18650 (3,7 V, 2500 mAh) con portapilas | 2 | En serie: ~7,4 a 8,4 V para los motores |
 | Power bank 5 V | 1 | Alimenta solo al ESP32 por micro-USB |
-| Interruptor | 1 | En el positivo de la batería de los motores |
-| Condensadores cerámicos de 100 nF | 2 | Uno entre los terminales de cada motor |
+| Interruptor | 1 | Enciende y apaga los motores |
+| Condensador cerámico de 100 nF | 2 | Uno entre los terminales de cada motor |
 | Condensador electrolítico 470 a 1000 µF | 1 | Entre `VM` y `GND` (recomendado) |
-| Protoboard y cables Dupont | — | |
-| Control de Xbox Series S | 1 | Mando para manejar el carro |
+| Protoboard y cables Dupont | — | Conexiones |
 
 ---
 
 ## 🔌 Conexiones
+
+```mermaid
+flowchart LR
+    P[Power bank 5 V] -->|micro-USB| E[ESP32 Lolin32 Lite]
+    B[2 x 18650<br/>7,4 a 8,4 V] -->|interruptor| D[Driver TB6612FNG]
+    E -->|6 señales| D
+    D --> M1[Motor izquierdo]
+    D --> M2[Motor derecho]
+```
 
 ### Alimentación del driver
 
@@ -41,101 +54,75 @@ flowchart LR
 |---|---|
 | `VM` | `+` de las baterías (después del interruptor) |
 | `VCC` | `3V3` del ESP32 |
-| `GND` | `GND` común |
+| `GND` (ambos) | `GND` común |
 | `STBY` | `3V3` del ESP32 |
 
-> ⚠️ El `GND` del ESP32, el de las baterías y el del driver deben estar unidos.
+> ⚠️ El `GND` del ESP32, el de las baterías y el del driver deben estar unidos en el mismo riel.
 
-### Señales
+### Señales desde el ESP32
 
-| Pin TB6612FNG | Pin ESP32 | Motor |
+| Pin TB6612FNG | Pin ESP32 | Función |
 |---|---|---|
-| `AIN1` | GPIO 16 | Izquierdo |
-| `AIN2` | GPIO 17 | Izquierdo |
-| `PWMA` | GPIO 22 | Izquierdo |
-| `BIN1` | GPIO 18 | Derecho |
-| `BIN2` | GPIO 19 | Derecho |
-| `PWMB` | GPIO 23 | Derecho |
+| `AIN1` | GPIO 16 | Dirección, motor izquierdo |
+| `AIN2` | GPIO 17 | Dirección, motor izquierdo |
+| `PWMA` | GPIO 22 | Velocidad, motor izquierdo |
+| `BIN1` | GPIO 18 | Dirección, motor derecho |
+| `BIN2` | GPIO 19 | Dirección, motor derecho |
+| `PWMB` | GPIO 23 | Velocidad, motor derecho |
 
 ### Motores
 
 | Pin TB6612FNG | Se conecta a |
 |---|---|
-| `AO1` / `AO2` | Motor izquierdo (cables rojo y negro) |
-| `BO1` / `BO2` | Motor derecho (cables rojo y negro) |
+| `AO1` | Motor izquierdo, cable rojo |
+| `AO2` | Motor izquierdo, cable negro |
+| `BO1` | Motor derecho, cable rojo |
+| `BO2` | Motor derecho, cable negro |
+
+Cada motor lleva un condensador de 100 nF entre sus dos terminales. Si un motor gira al revés de lo esperado, se intercambian sus cables rojo y negro.
+
+### Cómo funciona el driver
+
+| `IN1` | `IN2` | Motor |
+|---|---|---|
+| Alto | Bajo | Adelante |
+| Bajo | Alto | Atrás |
+| Bajo | Bajo | Libre |
+| Alto | Alto | Frenado |
+
+La velocidad se controla con la señal PWM (0 a 255) de `PWMA` y `PWMB`.
 
 ---
 
-## 💻 Código de prueba
-
-Secuencia automática: adelante, atrás, izquierda y derecha.
-
-```cpp
-const int AIN1 = 16, AIN2 = 17, PWMA = 22;   // motor izquierdo
-const int BIN1 = 18, BIN2 = 19, PWMB = 23;   // motor derecho
-const int VEL = 180;                         // velocidad de 0 a 255
-
-void motores(int a1, int a2, int b1, int b2, int v) {
-  digitalWrite(AIN1, a1); digitalWrite(AIN2, a2);
-  digitalWrite(BIN1, b1); digitalWrite(BIN2, b2);
-  analogWrite(PWMA, v);   analogWrite(PWMB, v);
-}
-void parar()     { motores(LOW, LOW, LOW, LOW, 0); delay(300); }
-void adelante()  { motores(HIGH, LOW, HIGH, LOW, VEL); }
-void atras()     { motores(LOW, HIGH, LOW, HIGH, VEL); }
-void izquierda() { motores(LOW, HIGH, HIGH, LOW, VEL); }
-void derecha()   { motores(HIGH, LOW, LOW, HIGH, VEL); }
-
-void setup() {
-  int pines[] = {16, 17, 18, 19, 22, 23};
-  for (int p : pines) pinMode(p, OUTPUT);
-  parar();
-}
-
-void loop() {
-  adelante();  delay(2000); parar();
-  atras();     delay(2000); parar();
-  izquierda(); delay(1500); parar();
-  derecha();   delay(1500); parar();
-  delay(2000);
-}
-```
-
----
-
-## 🚀 Cómo cargar el programa
+## 🚀 Cómo cargar y probar
 
 1. Instala **Arduino IDE 2.x** y el paquete de placas **esp32** (Espressif Systems).
 2. Elige la placa **WEMOS LOLIN32 Lite** y el puerto COM del ESP32.
-3. Con la batería de los motores **apagada**, pulsa **Subir**.
-4. Pon el carro con las ruedas en el aire, enciende la batería y verifica el movimiento.
-
-> Para el control de Xbox se usa la librería **Bluepad32**, que requiere el paquete de placas `esp32_bluepad32`.
-
----
-
-## ✅ Estado del proyecto
-
-- [x] Carro armado sobre el chasis 2WD
-- [x] Control de dirección con el driver TB6612FNG
-- [x] Movimiento adelante, atrás, izquierda y derecha
-- [ ] Control de Xbox por Bluetooth (en pruebas)
-- [ ] Mecanismos para las pruebas de la competencia
-- [ ] Confirmar con el profesor el uso del módulo como etapa de potencia
+3. Con la batería de los motores **apagada**, carga el código con el botón **Subir**.
+4. Revisa con el multímetro que no haya corto entre `VM` y `GND`.
+5. Pon el carro con las ruedas en el aire, conecta el power bank, enciende la batería de los motores y comprueba la secuencia.
 
 ---
 
-## ⚠️ Seguridad
+## ✅ Resultados
+
+- [x] El carro avanza
+- [x] El carro retrocede
+- [x] El carro gira a la izquierda
+- [x] El carro gira a la derecha
+- [x] Sin cortos en el circuito (verificado con multímetro)
+
+
+---
+
+## ⚠️ Precauciones
 
 - Apaga el interruptor antes de sacar o poner las baterías 18650.
-- No descargues cada celda por debajo de 3,0 V y no las dejes cargando sin supervisión.
-- Nunca conectes `VM` con la polaridad invertida: el módulo no tiene protección.
+- No descargues cada celda por debajo de 3,0 V.
+- No conectes `VM` con la polaridad invertida: el módulo no tiene protección.
 - No conectes el ESP32 al PC y al power bank al mismo tiempo.
 
 ---
 
-## 👥 Autores
-
-- [Tu nombre y el de tu equipo]
 
 Universidad de Antioquia — Facultad de Ingeniería
