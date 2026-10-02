@@ -112,7 +112,7 @@ flowchart LR
 ## 📅 Estado del proyecto
 
 - [x] **Entrega 1:** etapa de potencia y movimiento básico del carro
-- [ ] Control de Xbox por Bluetooth
+- [x] Control de Xbox por Bluetooth
 - [ ] **Carro 1:** velocidad y sumo
 - [ ] **Carro 2:** obstáculos y seguidor de línea
 - [ ] Pruebas y ajustes para la competencia
